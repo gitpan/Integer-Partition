@@ -7,7 +7,7 @@
 
 use strict;
 
-eval qq{ use Test::More tests => 6 };
+eval qq{ use Test::More tests => 9 };
 if( $@ ) {
     warn "# Test::More not available, no tests performed\n";
     print "1..1\nok 1\n";
@@ -22,12 +22,21 @@ $_ = $Unchanged;
 diag( "testing Integer::Partition v$Integer::Partition::VERSION" );
 
 {
-    my $t = Integer::Partition->new;
+    my $t = Integer::Partition->new(1);
     ok( defined($t), 'new() defines ...' );
     ok( ref($t) eq 'Integer::Partition', '... a Integer::Partition object' );
 
     my $r = $t->next;
-    ok( !defined($r), 'cannot arrange nothing' );
+    is( ref($r), 'ARRAY', '... returns an arrayref' );
+
+    $t = Integer::Partition->new(1, 2);
+    ok( defined($t), 'new() ignores trailing parameter' );
+
+    $t = Integer::Partition->new(1, [2]);
+    ok( defined($t), 'new() ignores trailing ref' );
+
+    $t = Integer::Partition->new(1, {bogus => 2});
+    ok( defined($t), 'new() ignores unknown key' );
 }
 
 SKIP: {

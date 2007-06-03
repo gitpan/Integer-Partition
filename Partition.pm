@@ -7,7 +7,7 @@ package Integer::Partition;
 use strict;
 
 use vars qw/$VERSION/;
-$VERSION = '0.01';
+$VERSION = '0.02';
 
 =head1 NAME
 
@@ -15,8 +15,8 @@ Integer::Partition - Generate all integer partitions of an integer
 
 =head1 VERSION
 
-This document describes version 0.01 of Integer::Partition,
-released 2007-xx-xx.
+This document describes version 0.02 of Integer::Partition, released
+2007-06-02.
 
 =head1 SYNOPSIS
 
@@ -24,7 +24,7 @@ released 2007-xx-xx.
 
   my $i = Integer::Partition->new(4);
   while (my $p = $i->next) {
-    print join( ' ', map { "(@$_)" } @$p ), $/;
+    print join( ' ', map { "@$_" } @$p ), $/;
   }
   # produces
   4
@@ -33,11 +33,24 @@ released 2007-xx-xx.
   2 1 1
   1 1 1 1
 
+  my $j = Integer::Partition->new(5, {lexicographic => 1});
+  while (my $p = $j->next) {
+    print join( ' ', map { "@$_" } @$p ), $/;
+  }
+  # produces
+  1 1 1 1 1
+  2 1 1 1
+  2 2 1
+  3 1 1
+  3 2
+  4 1
+  5
+
 =head1 DESCRIPTION
 
 C<Integer::Partition> takes an integer number and produces an object
 that can be used to generate all possible integer partitions of the
-original number in reverse lexographic order.
+original number in either forward or reverse lexicographic order.
 
 =head1 METHODS
 
@@ -46,28 +59,54 @@ original number in reverse lexographic order.
 =item new
 
 Creates a new C<Integer::Partition> object. Takes an integer as a
-parameter.
+parameter. By default, the partitions appear in reverse order, as
+the algorithm is slightly faster. Forward ordering uses a different,
+slightly slower algorithm (which is nonetheless much faster than
+any existing algorithm).
 
 =cut
 
 sub new {
     my $class = shift;
     my $n     = shift;
+    if (!defined $n) {
+        require Carp;
+        Carp::croak("missing or undefined input");
+    }
+    elsif ($n =~ /\D/ or $n < 1) {
+        require Carp;
+        Carp::croak("$n is not a positive integer");
+    }
+    elsif ($n != int($n)) {
+        require Carp;
+        Carp::croak("$n is not an integer");
+    }
+    my $arg = shift;
+
+    my $forward = 0;
+    if (defined $arg and ref($arg) eq 'HASH' and exists $arg->{lexicographic}) {
+        $forward = $arg->{lexicographic};
+    }
 
     my @x;
-    if (defined $n) {
-        @x    = (1) x $n;
+    if ($forward) {
+        @x = (1) x ($n+1);
+        $x[0] = -1;
+    }
+    else {
+        @x = (1) x $n;
         $x[0] = $n;
     }
 
-    return bless {
+    my $self = {
         n => $n,
         x => \@x,
-        m => 0,
-        h => 0,
-        once => 0,
-    },
-    $class;
+        h => $forward ?      1 : 0,
+        m => $forward ? $n - 1 : 0,
+        count => 0,
+        forward => $forward,
+    };
+    return bless $self, $class;
 }
 
 =item next
@@ -79,8 +118,44 @@ generated.
 
 sub next {
     my $self = shift;
-    return unless defined $self->{n};
-    return [$self->{n}] unless $self->{once}++;
+    if ($self->{forward}) {
+        if (++$self->{count} == 1) {
+            return [@{$self->{x}}[1..$self->{n}]];
+        }
+        elsif ($self->{x}[1] == $self->{n}) {
+            return;
+        }
+        elsif ($self->{count} == 2) {
+            $self->{x}[1] = 2;
+            return [@{$self->{x}}[1..$self->{n}-1]];
+        }
+        else {
+            if ($self->{m} - $self->{h} > 1) {
+                ++$self->{h};
+                $self->{x}[$self->{h}] = 2;
+                --$self->{m};
+            }
+            else {
+                my $j = $self->{m} - 2;
+                while ($self->{x}[$j] == $self->{x}[$self->{m}-1]) {
+                    $self->{x}[$j] = 1;
+                    --$j;
+                }
+                $self->{h} = $j + 1;
+                $self->{x}[$self->{h}] = $self->{x}[$self->{m}-1] + 1;
+                my $r = $self->{x}[$self->{m}]
+                    + $self->{x}[$self->{m} - 1] * ($self->{m} - $self->{h} - 1);
+                $self->{x}[$self->{m}] = 1;
+                if ($self->{m} - $self->{h} > 1) {
+                    $self->{x}[$self->{m}-1] = 1;
+                }
+                $self->{m} = $self->{h} + $r - 1;
+            }
+            return [@{$self->{x}}[1..$self->{m}]];
+        }
+    }
+
+    return [$self->{n}] unless $self->{count}++;
     return if $self->{x}[0] == 1;
 
     if ($self->{x}[$self->{h}] == 2) {
@@ -112,13 +187,21 @@ beginning.
 =cut
 
 sub reset {
-    my $self  = shift;
-    my @x = (1) x $self->{n};
-    $x[0] = $self->{n};
-	$self->{x} = \@x;
-	$self->{m} = 0;
-	$self->{h} = 0;
-	$self->{once} = 0;
+    my $self = shift;
+    my $n    = $self->{n};
+    my @x;
+    if ($self->{forward}) {
+        @x = (1) x ($n+1);
+        $x[0] = -1;
+    }
+    else {
+        @x = (1) x $n;
+        $x[0] = $n;
+    }
+    $self->{x} = \@x;
+    $self->{m} = $self->{forward} ? $n - 1 : 0,
+    $self->{h} = $self->{forward} ?      1 : 0,
+    $self->{count} = 0;
     return $self;
 }
 
@@ -126,11 +209,32 @@ sub reset {
 
 =head1 DIAGNOSTICS
 
-None.
+=head2 missing or undefined input
+
+The C<new()> method was called without an input parameter, which
+should be a positive integer.
+
+=head2 C<n> is not a positive integer
+
+The C<new()> method was called with zero or a negative integer.
+
+=head2 C<n> is not an integer
+
+The C<new()> method was called with a number containing a decimal
+component. Use C<int> or C<sprintf '%d'> on the input if necessary.
 
 =head1 NOTES
 
-None.
+This module implements the Zoghbi and Stojmenovic ZS1 and ZS2
+algorithms for generating integer partitions. See
+L<http://www.site.uottawa.ca/~ivan/F49-int-part.pdf> for more
+information. These algorithms have been proven to have constant
+average delay, that is, the amount of effort it takes to produce
+the next result in the series.
+
+They are the fastest known algorithms known for generating integer
+partitions (with the ZS1 reverse lexicographic order algorithm being
+slightly faster than the ZS2 lexicographic order algorithm).
 
 =head1 SEE ALSO
 
@@ -138,8 +242,15 @@ None.
 
 =item *
 
-Permutations, combinations, derangements and more; all you need
-for your set transformations.
+L<http://en.wikipedia.org/wiki/Integer_partition>
+
+The Wikipedia entry on integer partitions
+
+=item *
+
+L<http://www.site.uottawa.ca/~ivan/F49-int-part.pdf> 
+
+The original 1998 paper written by Zoghbi and Stojmenovic.
 
 =back
 
@@ -150,12 +261,14 @@ L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=Set-Partition|rt.cpan.org>
 
 Make sure you include the output from the following two commands:
 
-  perl -MSet::Partition -le 'print $Integer::Partition::VERSION'
+  perl -MInteger::Partition -le 'print $Integer::Partition::VERSION'
   perl -V
 
 =head1 ACKNOWLEDGEMENTS
 
-TODO
+Thanks to Antoine Zoghbi and Ivan Stojmenovic, for sharing their
+discovery with the world on the internet, and not hiding it in
+behind some sort of pay-wall.
 
 =head1 AUTHOR
 
