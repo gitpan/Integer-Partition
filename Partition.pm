@@ -1,13 +1,14 @@
 # Integer::Partition.pm
 #
-# Copyright (c) 2007 David Landgren
+# Copyright (c) 2007-2013 David Landgren
 # All rights reserved
 
 package Integer::Partition;
 use strict;
+use warnings;
 
 use vars qw/$VERSION/;
-$VERSION = '0.03';
+$VERSION = '0.05';
 
 =head1 NAME
 
@@ -15,8 +16,8 @@ Integer::Partition - Generate all integer partitions of an integer
 
 =head1 VERSION
 
-This document describes version 0.03 of Integer::Partition, released
-2007-10-12.
+This document describes version 0.05 of Integer::Partition, released
+2013-06-23.
 
 =head1 SYNOPSIS
 
@@ -131,24 +132,20 @@ sub next {
         }
         else {
             if ($self->{m} - $self->{h} > 1) {
-                ++$self->{h};
-                $self->{x}[$self->{h}] = 2;
+                $self->{x}[++$self->{h}] = 2;
                 --$self->{m};
             }
             else {
                 my $j = $self->{m} - 2;
                 while ($self->{x}[$j] == $self->{x}[$self->{m}-1]) {
-                    $self->{x}[$j] = 1;
-                    --$j;
+                    $self->{x}[$j--] = 1;
                 }
                 $self->{h} = $j + 1;
                 $self->{x}[$self->{h}] = $self->{x}[$self->{m}-1] + 1;
                 my $r = $self->{x}[$self->{m}]
                     + $self->{x}[$self->{m} - 1] * ($self->{m} - $self->{h} - 1);
-                $self->{x}[$self->{m}] = 1;
-                if ($self->{m} - $self->{h} > 1) {
-                    $self->{x}[$self->{m}-1] = 1;
-                }
+                $self->{x}[$self->{m}]   = 1;
+                $self->{x}[$self->{m}-1] = 1 if $self->{m} - $self->{h} > 1;
                 $self->{m} = $self->{h} + $r - 1;
             }
             return [@{$self->{x}}[1..$self->{m}]];
@@ -256,13 +253,18 @@ The original 1998 paper written by Zoghbi and Stojmenovic.
 
 =head1 BUGS
 
+None known.
+
 Please report all bugs at
-L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=Set-Partition|rt.cpan.org>
+L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=Integer-Partition|rt.cpan.org>
 
 Make sure you include the output from the following two commands:
 
   perl -MInteger::Partition -le 'print $Integer::Partition::VERSION'
   perl -V
+
+Pull requests on Github may be issued at
+L<https://github.com/dland/Integer-Partition>.
 
 =head1 ACKNOWLEDGEMENTS
 
@@ -272,7 +274,7 @@ behind some sort of pay-wall.
 
 =head1 AUTHOR
 
-David Landgren, copyright (C) 2007. All rights reserved.
+David Landgren, copyright (C) 2007-2013. All rights reserved.
 
 http://www.landgren.net/perl/
 
